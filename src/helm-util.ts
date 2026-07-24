@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import * as path from 'path'
-import * as fs from 'fs'
-import * as util from 'util'
+import path from 'path'
+import fs from 'fs'
+import util from 'util'
 import * as toolCache from '@actions/tool-cache'
 import * as core from '@actions/core'
 import * as io from '@actions/io'
@@ -14,7 +14,7 @@ import {
    setCachedToolPath,
    getStableVerison,
    resolveHelmVersion
-} from './utilities'
+} from './utilities.js'
 
 const helmToolName = 'helm'
 export interface NameValuePair {
@@ -22,7 +22,11 @@ export interface NameValuePair {
    value: string
 }
 
-export function walkSync(dir, filelist = [], fileToFind) {
+export function walkSync(
+   dir: string,
+   filelist: string[] = [],
+   fileToFind: string
+) {
    const files = fs.readdirSync(dir)
    files.forEach(function (file) {
       if (fs.statSync(path.join(dir, file)).isDirectory()) {
@@ -52,12 +56,12 @@ export async function downloadHelm(version: string): Promise<string> {
       )
    }
 
-   fs.chmodSync(helmpath, '777')
+   fs.chmodSync(helmpath, '755')
    return helmpath
 }
 
 export function findHelm(rootFolder: string): string {
-   fs.chmodSync(rootFolder, '777')
+   fs.chmodSync(rootFolder, '755')
    const filelist: string[] = []
    walkSync(rootFolder, filelist, helmToolName + getExecutableExtension())
    if (!filelist) {

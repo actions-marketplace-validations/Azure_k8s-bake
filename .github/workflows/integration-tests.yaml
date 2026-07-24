@@ -10,18 +10,15 @@ jobs:
             os: [windows-latest, ubuntu-latest, macos-latest]
       runs-on: ${{ matrix.os }}
       steps:
-         - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+         - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
            name: Checkout branch
 
          - name: Install npm packages
            run: |
               npm install --legacy-peer-deps
 
-         - name: Install ncc
-           run: npm i -g @vercel/ncc
-
          - name: Build
-           run: ncc build src/run.ts -o lib
+           run: npm run build
 
          - name: Bake using Helm on ${{ matrix.os }}
            uses: ./
@@ -37,7 +34,7 @@ jobs:
            id: helm-bake
 
          - name: Validate created manifest ${{ matrix.os }}
-           uses: Azure/k8s-lint@v3
+           uses: Azure/k8s-lint@v4
            with:
               manifests: ${{ steps.helm-bake.outputs.manifestsBundle }}
 
@@ -57,7 +54,7 @@ jobs:
            id: helm-semver-bake
 
          - name: Validate created manifest with semver helm ${{ matrix.os }}
-           uses: Azure/k8s-lint@v3
+           uses: Azure/k8s-lint@v4
            with:
               manifests: ${{ steps.helm-semver-bake.outputs.manifestsBundle }}
 
@@ -70,7 +67,7 @@ jobs:
            id: kompose-bake
 
          - name: validate created manifest ${{ matrix.os }}
-           uses: Azure/k8s-lint@v3
+           uses: Azure/k8s-lint@v4
            with:
               manifests: ${{ steps.kompose-bake.outputs.manifestsBundle }}
 
@@ -84,7 +81,7 @@ jobs:
            id: kustomize-bake
 
          - name: Validate created manifest ${{ matrix.os }}
-           uses: Azure/k8s-lint@v3
+           uses: Azure/k8s-lint@v4
            with:
               manifests: ${{ steps.kustomize-bake.outputs.manifestsBundle }}
 
@@ -98,6 +95,6 @@ jobs:
            id: kustomize-args-bake
 
          - name: Validate created manifest with arguments ${{ matrix.os }}
-           uses: Azure/k8s-lint@v3
+           uses: Azure/k8s-lint@v4
            with:
               manifests: ${{ steps.kustomize-args-bake.outputs.manifestsBundle }}

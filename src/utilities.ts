@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-import * as os from 'os'
-import * as fs from 'fs'
-import * as util from 'util'
-import {ToolRunner} from '@actions/exec/lib/toolrunner'
-import {ExecOptions} from '@actions/exec/lib/interfaces'
+import os from 'os'
+import fs from 'fs'
+import util from 'util'
+import {getExecOutput, ExecOptions} from '@actions/exec'
 import * as toolCache from '@actions/tool-cache'
 import * as core from '@actions/core'
 import * as semver from 'semver'
@@ -40,33 +39,25 @@ export async function execCommand(
    args: string[],
    options: ExecOptions = {} as ExecOptions
 ): Promise<ExecResult> {
-   const execResult = {
-      stdout: '',
-      stderr: ''
-   } as ExecResult
-
-   options.listeners = {
-      stdout: (data: Buffer) => {
-         execResult.stdout += data.toString()
-      },
-      stderr: (data: Buffer) => {
-         execResult.stderr += data.toString()
-      }
-   }
-
-   let toolRunner = new ToolRunner(toolPath, args, options)
-   const result = await toolRunner.exec()
-   if (result != 0) {
-      if (!!execResult.stderr) {
-         throw Error(execResult.stderr)
+   const result = await getExecOutput(toolPath, args, options)
+   if (result.exitCode != 0) {
+      if (!!result.stderr) {
+         throw Error(result.stderr)
       } else {
          throw Error(
-            util.format('%s exited with result code %s', toolPath, result)
+            util.format(
+               '%s exited with result code %s',
+               toolPath,
+               result.exitCode
+            )
          )
       }
    }
 
-   return execResult
+   return {
+      stdout: result.stdout,
+      stderr: result.stderr
+   }
 }
 
 export async function setCachedToolPath(toolName: string, version: string) {
@@ -83,7 +74,7 @@ export async function setCachedToolPath(toolName: string, version: string) {
    }
 
    if (toolName == 'helm') {
-      fs.chmodSync(downloadPath, '777')
+      fs.chmodSync(downloadPath, '755')
       const unzipedHelmPath = await toolCache.extractZip(downloadPath)
       cachedToolpath = await toolCache.cacheDir(
          unzipedHelmPath,
@@ -155,40 +146,35 @@ export async function getStableVerison(toolName: string) {
 const defaultStableHelmVersion = 'v3.19.3'
 const defaultStableKubectlVersion = 'v1.34.3'
 
-const stableVersionUrls = {
-   kubectl:
-      'https://storage.googleapis.com/kubernetes-release/release/stable.txt',
+const stableVersionUrls: Record<string, string> = {
+   kubectl: 'https://dl.k8s.io/release/stable.txt',
    helm: 'https://api.github.com/repos/helm/helm/releases/latest'
 }
 
-const downloadLinks = {
+const downloadLinks: Record<string, Record<string, string>> = {
    Linux_x64: {
       helm: 'https://get.helm.sh/helm-%s-linux-amd64.zip',
       kompose:
          'https://github.com/kubernetes/kompose/releases/download/%s/kompose-linux-amd64',
-      kubectl:
-         'https://storage.googleapis.com/kubernetes-release/release/%s/bin/linux/amd64/kubectl'
+      kubectl: 'https://dl.k8s.io/%s/bin/linux/amd64/kubectl'
    },
    Linux_arm64: {
       helm: 'https://get.helm.sh/helm-%s-linux-arm64.zip',
       kompose:
          'https://github.com/kubernetes/kompose/releases/download/%s/kompose-linux-arm64',
-      kubectl:
-         'https://storage.googleapis.com/kubernetes-release/release/%s/bin/linux/arm64/kubectl'
+      kubectl: 'https://dl.k8s.io/%s/bin/linux/arm64/kubectl'
    },
    Darwin: {
       helm: 'https://get.helm.sh/helm-%s-darwin-amd64.zip',
       kompose:
          'https://github.com/kubernetes/kompose/releases/download/%s/kompose-darwin-amd64',
-      kubectl:
-         'https://storage.googleapis.com/kubernetes-release/release/%s/bin/darwin/amd64/kubectl'
+      kubectl: 'https://dl.k8s.io/%s/bin/darwin/amd64/kubectl'
    },
    Windows_NT: {
       helm: 'https://get.helm.sh/helm-%s-windows-amd64.zip',
       kompose:
          'https://github.com/kubernetes/kompose/releases/download/%s/kompose-windows-amd64.exe',
-      kubectl:
-         'https://storage.googleapis.com/kubernetes-release/release/%s/bin/windows/amd64/kubectl.exe'
+      kubectl: 'https://dl.k8s.io/%s/bin/windows/amd64/kubectl.exe'
    }
 }
 
