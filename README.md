@@ -9,7 +9,7 @@ Sets output variable 'manifestsBundle' which contains the location of the manife
 #### Bake using helm
 
 ```yaml
-- uses: azure/k8s-bake@v3
+- uses: azure/k8s-bake@v4
    with:
       renderEngine: 'helm'
       helmChart: './aks-helloworld/'
@@ -37,7 +37,7 @@ The `helm-version` input supports semver-compatible version ranges. This is usef
 #### Bake using Kompose
 
 ```yaml
-- uses: azure/k8s-bake@v3
+- uses: azure/k8s-bake@v4
   with:
      renderEngine: 'kompose'
      dockerComposeFile: './docker-compose.yml'
@@ -47,7 +47,7 @@ The `helm-version` input supports semver-compatible version ranges. This is usef
 #### Bake using Kubernetes Kustomize
 
 ```yaml
-- uses: azure/k8s-bake@v3
+- uses: azure/k8s-bake@v4
   with:
      renderEngine: 'kustomize'
      kustomizationPath: './kustomizeexample/'
@@ -57,7 +57,25 @@ The `helm-version` input supports semver-compatible version ranges. This is usef
      kubectl-version: 'latest'
 ```
 
-Refer to the [action metadata file](https://github.com/Azure/k8s-bake/blob/master/action.yml) for details about all the inputs.
+Refer to the [action metadata file](https://github.com/Azure/k8s-bake/blob/main/action.yml) for details about all the inputs.
+
+## Output location
+
+The baked manifest is written to a `.k8s-bake` directory inside `GITHUB_WORKSPACE`, and its full path is exposed as the `manifestsBundle` output. The manifest is removed at the end of the job, along with the directory if nothing else is in it.
+
+Always consume the result through the output variable rather than hardcoding a path:
+
+```yaml
+manifests: ${{ steps.bake.outputs.manifestsBundle }}
+```
+
+If your workflow checks for an unmodified checkout part way through the job, add the directory to your `.gitignore`:
+
+```gitignore
+.k8s-bake/
+```
+
+> **Note.** Earlier versions wrote to `RUNNER_TEMP`, which sits outside `GITHUB_WORKSPACE`. `k8s-deploy` v7 rejects manifests that resolve outside the workspace, so bake output could no longer be deployed ([#286](https://github.com/Azure/k8s-bake/issues/286)). Workflows that read `manifestsBundle` need no changes.
 
 ## End to end workflow for building container images and deploying to a Kubernetes cluster
 
@@ -68,9 +86,9 @@ jobs:
    build:
       runs-on: ubuntu-latest
       steps:
-         - uses: actions/checkout@master
+         - uses: actions/checkout@v7
 
-         - uses: Azure/docker-login@v1
+         - uses: Azure/docker-login@v2
            with:
               login-server: contoso.azurecr.io
               username: ${{ secrets.REGISTRY_USERNAME }}
@@ -80,18 +98,18 @@ jobs:
               docker build . -t contoso.azurecr.io/k8sdemo:${{ github.sha }}
               docker push contoso.azurecr.io/k8sdemo:${{ github.sha }}
 
-         - uses: Azure/k8s-set-context@v3
+         - uses: Azure/k8s-set-context@v5
            with:
               kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
-         - uses: Azure/k8s-create-secret@v4
+         - uses: Azure/k8s-create-secret@v6
            with:
               container-registry-url: contoso.azurecr.io
               container-registry-username: ${{ secrets.REGISTRY_USERNAME }}
               container-registry-password: ${{ secrets.REGISTRY_PASSWORD }}
               secret-name: demo-k8s-secret
 
-         - uses: azure/k8s-bake@v3
+         - uses: azure/k8s-bake@v4
            with:
               renderEngine: 'helm'
               helmChart: './aks-helloworld/'
@@ -101,13 +119,34 @@ jobs:
               helm-version: 'latest'
            id: bake
 
-         - uses: Azure/k8s-deploy@v4
+         - uses: Azure/k8s-deploy@v7
            with:
               manifests: ${{ steps.bake.outputs.manifestsBundle }}
               images: |
                  demo.azurecr.io/k8sdemo:${{ github.sha }}
               imagepullsecrets: |
                  demo-k8s-secret
+```
+
+# Development
+
+This repository enforces a **7-day dependency freshness ("bake") period**: newly
+published npm packages are not adopted until they have been available for at
+least 7 days, giving the ecosystem time to catch broken or malicious releases.
+
+- **Dependabot** uses a 7-day `cooldown` and opens PRs on the 1st and 15th of
+  each month, grouping minor/patch updates into a single PR. Major updates are
+  still raised individually so they get their own review.
+- **`.npmrc`** sets `min-release-age=7` (days), which applies the same rule to
+  local `npm install`. This requires npm >= 11.10.0; the version bundled with
+  Node 24 (this action's runtime) satisfies that. On older npm the setting is
+  ignored, so Dependabot's `cooldown` remains the authoritative control.
+
+**Security exception:** to adopt an urgent patch that is less than 7 days old,
+install it once with the age check disabled:
+
+```sh
+npm install <pkg> --min-release-age=0
 ```
 
 # Contributing
